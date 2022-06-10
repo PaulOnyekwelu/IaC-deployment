@@ -1,8 +1,8 @@
 Parameters:
-  # Paramenters are entirely optional.
-  # but using them will make your cloudformation templates more reusable
-  # use them for things that may change over time, such as instance type,
-  # VPCs and so on.
+  EnvironmentName:
+    Description: An easy name to identify relatable resources
+    Type: String
+
 Resources:
   # instace profile contains the IAM Role name(s) that we want to associate to our auto scaling EC2 Servers
   # never give too much permissions to your EC2 instances! if they get hacked, the permissions get hacked also!
@@ -12,7 +12,8 @@ Resources:
     Properties: 
       Roles:
         - UdacityS3ReadOnlyEC2
-Outputs: 
+
+# Outputs: 
   # This is also optional.
   # Bonus points for useful outputs!
   # for example, if you create a Load Balancer
@@ -30,4 +31,4 @@ Outputs:
 #          apt-get install apache2 -y
 #          systemctl start apache2.service
 #          cd /var/www/html
-#          echo "Udacity Demo Web Server Up and Running!" > index.html
+#          echo "it works! Udagram, Udacity" > index.html
