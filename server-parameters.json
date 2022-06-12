@@ -9,6 +9,6 @@
   },
   {
     "ParameterKey": "InstanceType",
-    "ParameterValue": "t2.medium"
+    "ParameterValue": "t3.medium"
   }
 ]

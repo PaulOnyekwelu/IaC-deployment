@@ -133,7 +133,7 @@ Resources:
     Properties:
       LaunchConfigurationName: !Ref LaunchConfiguration
       MaxSize: "6"
-      MinSize: "1"
+      MinSize: "4"
       VPCZoneIdentifier:
         - Fn::ImportValue: !Sub ${EnvironmentName}-PRIV-NETS
       TargetGroupARNs:
