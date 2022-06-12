@@ -1,0 +1,2 @@
+#!/bin/bash
+aws cloudformation update-stack --stack-name iac-server --template-body file://final-project-starter.yml  --parameters file://server-parameters.json --capabilities "CAPABILITY_IAM" "CAPABILITY_NAMED_IAM" --region=us-west-2

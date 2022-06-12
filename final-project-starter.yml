@@ -2,22 +2,136 @@ Parameters:
   EnvironmentName:
     Description: An easy name to identify relatable resources
     Type: String
+  AmiId:
+    Description: Amazon machine image id
+    Type: String
+  InstanceType:
+    Description: Instance type for EC2
+    Type: String
+  KeyName:
+    Description: Keypair for accessing Server
+    Type: String
 
 Resources:
   # instace profile contains the IAM Role name(s) that we want to associate to our auto scaling EC2 Servers
   # never give too much permissions to your EC2 instances! if they get hacked, the permissions get hacked also!
   # in this example, I create a Role called UdacityS3ReadOnlyC2 and just give it a policy of S3 Read-Only Access
+  UdacityS3ReadOnlyEC2:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      Policies:
+        - PolicyName: AmazonS3ReadOnlyAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:Get*"
+                  - "s3:List*"
+                  - "s3-object-lambda:Get*"
+                  - "s3-object-lambda:List*"
+                Resource: "*"
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-S3ReadOnlyEC2
+
   ProfileWithRolesForOurApp:
     Type: AWS::IAM::InstanceProfile
-    Properties: 
+    Properties:
       Roles:
-        - UdacityS3ReadOnlyEC2
+        - !Ref UdacityS3ReadOnlyEC2
 
-# Outputs: 
-  # This is also optional.
-  # Bonus points for useful outputs!
-  # for example, if you create a Load Balancer
-  # it's nice to output the URL to it here, so that we don't have to go to the console to get it.
+  LBSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to client host
+      VpcId:
+        Fn::ImportValue: !Sub ${EnvironmentName}-VPC-Export
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-LBSecGroup
+
+  WebSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to client host
+      VpcId:
+        Fn::ImportValue: !Sub ${EnvironmentName}-VPC-Export
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-LBSecGroup
+
+  LaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !Ref AmiId
+      SecurityGroups:
+        - !Ref WebSecGroup
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref ProfileWithRolesForOurApp
+      KeyName: !Ref KeyName
+      BlockDeviceMappings:
+        - DeviceName: /dev/sdk
+          Ebs:
+            VolumeSize: 10
+            VolumeType: gp3
+      UserData: !Base64 |
+        #!/bin/bash
+        apt-get update -y
+        apt-get install apache2 -y
+        systemctl start apache2.service
+        cd /var/www/html
+        echo "it works! Udagram, Udacity" > index.html
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchConfigurationName: !Ref LaunchConfiguration
+      MaxSize: "2"
+      MinSize: "2"
+      DesiredCapacity: "2"
+      VPCZoneIdentifier:
+        - Fn::ImportValue: !Sub "${EnvironmentName}-PRIV-NETS"
+  
+# Outputs:
+# This is also optional.
+# Bonus points for useful outputs!
+# for example, if you create a Load Balancer
+# it's nice to output the URL to it here, so that we don't have to go to the console to get it.
 
 # Sample UserData
 # When creating your Launch Configuration, you may need a UserData script

@@ -1,6 +1,18 @@
 [
-	{
-		"ParameterKey": "EnvironmentName",
-		"ParameterValue": "UdacityProject"
-	}
+  {
+    "ParameterKey": "EnvironmentName",
+    "ParameterValue": "UdacityProject"
+  },
+  {
+    "ParameterKey": "AmiId",
+    "ParameterValue": "ami-0cfa91bdbc3be780c"
+  },
+  {
+    "ParameterKey": "InstanceType",
+    "ParameterValue": "t2.medium"
+  },
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": "iac-server"
+  }
 ]

@@ -220,3 +220,9 @@ Outputs:
     Value: !Ref PrivateSubnet2
     Export:
       Name: !Sub ${EnvironmentName}-Privnet2-Export
+
+  PrivateSubnets:
+    Description: A list of the private subnets
+    Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
+    Export:
+      Name: !Sub ${EnvironmentName}-PRIV-NETS
