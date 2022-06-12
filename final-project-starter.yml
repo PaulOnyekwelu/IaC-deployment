@@ -8,14 +8,8 @@ Parameters:
   InstanceType:
     Description: Instance type for EC2
     Type: String
-  KeyName:
-    Description: Keypair for accessing Server
-    Type: String
 
 Resources:
-  # instace profile contains the IAM Role name(s) that we want to associate to our auto scaling EC2 Servers
-  # never give too much permissions to your EC2 instances! if they get hacked, the permissions get hacked also!
-  # in this example, I create a Role called UdacityS3ReadOnlyC2 and just give it a policy of S3 Read-Only Access
   UdacityS3ReadOnlyEC2:
     Type: "AWS::IAM::Role"
     Properties:
@@ -56,7 +50,7 @@ Resources:
     Properties:
       GroupDescription: Allow http to client host
       VpcId:
-        Fn::ImportValue: !Sub ${EnvironmentName}-VPC-Export
+        Fn::ImportValue: !Sub "${EnvironmentName}-VPC-Export"
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -74,26 +68,30 @@ Resources:
   WebSecGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow http to client host
+      GroupDescription: Allow http to our hosts and SSH from local only
       VpcId:
-        Fn::ImportValue: !Sub ${EnvironmentName}-VPC-Export
+        Fn::ImportValue: !Sub "${EnvironmentName}-VPC-Export"
       SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
-          FromPort: 8080
-          ToPort: 8080
+          FromPort: 22
+          ToPort: 22
           CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
-        - IpProtocol: -1
-          FromPort: -1
-          ToPort: -1
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-LBSecGroup
+          Value: !Sub ${EnvironmentName}-WebSecGroup
 
   LaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -103,7 +101,6 @@ Resources:
         - !Ref WebSecGroup
       InstanceType: !Ref InstanceType
       IamInstanceProfile: !Ref ProfileWithRolesForOurApp
-      KeyName: !Ref KeyName
       BlockDeviceMappings:
         - DeviceName: /dev/sdk
           Ebs:
@@ -117,32 +114,65 @@ Resources:
         cd /var/www/html
         echo "it works! Udagram, Udacity" > index.html
 
+  WebAppTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 60
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 5
+      VpcId:
+        Fn::ImportValue: !Sub ${EnvironmentName}-VPC-Export
+
   AutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       LaunchConfigurationName: !Ref LaunchConfiguration
-      MaxSize: "2"
-      MinSize: "2"
-      DesiredCapacity: "2"
+      MaxSize: "6"
+      MinSize: "1"
       VPCZoneIdentifier:
-        - Fn::ImportValue: !Sub "${EnvironmentName}-PRIV-NETS"
-  
-# Outputs:
-# This is also optional.
-# Bonus points for useful outputs!
-# for example, if you create a Load Balancer
-# it's nice to output the URL to it here, so that we don't have to go to the console to get it.
+        - Fn::ImportValue: !Sub ${EnvironmentName}-PRIV-NETS
+      TargetGroupARNs:
+        - Ref: WebAppTargetGroup
 
-# Sample UserData
-# When creating your Launch Configuration, you may need a UserData script
-# here's one that you can use for Ubuntu Linux that will:
-# Install Apache Web Server, Start it, and create an index.html that will be displayed
-# when you visit the IP address of this server with your web browser
-#Here it is:
-#
-#          #!/bin/bash
-#          apt-get update -y
-#          apt-get install apache2 -y
-#          systemctl start apache2.service
-#          cd /var/www/html
-#          echo "it works! Udagram, Udacity" > index.html
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Subnets:
+        - Fn::ImportValue: !Sub ${EnvironmentName}-Pubnet1-Export
+        - Fn::ImportValue: !Sub ${EnvironmentName}-Pubnet2-Export
+      SecurityGroups:
+        - Ref: LBSecGroup
+
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WebAppTargetGroup
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  ALBListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref WebAppTargetGroup
+      Conditions:
+        - Field: path-pattern
+          Values: [/]
+      ListenerArn: !Ref ALBListener
+      Priority: 1
+
+Outputs:
+  ALB:
+    Description: Application load Balancer
+    Value: !Join ["", ["http://", !GetAtt LoadBalancer.DNSName]]
+    Export:
+      Name: !Sub ${EnvironmentName}-LBDNS

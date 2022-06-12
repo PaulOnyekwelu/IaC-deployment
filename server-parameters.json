@@ -10,9 +10,5 @@
   {
     "ParameterKey": "InstanceType",
     "ParameterValue": "t2.medium"
-  },
-  {
-    "ParameterKey": "KeyName",
-    "ParameterValue": "iac-server"
   }
 ]
